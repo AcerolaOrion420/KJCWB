@@ -1,4 +1,5 @@
 package org.kjcwb.Packages.Handlers;
+import io.vertx.core.Vertx;
 import io.vertx.ext.web.RoutingContext;
 import org.kjcwb.Packages.Services.EmailService;
 import org.kjcwb.Packages.Services.RedisService;
@@ -16,8 +17,9 @@ public class OTPHandler {
         // Store OTP in Redis
         RedisService.storeOtp(email, otp);
 
-        // Send OTP via email
-        EmailService.sendEmail(email, "Your OTP Code", "Your OTP code is: " + otp);
+        // Deploy EmailService Verticle to send OTP email
+        Vertx vertx = ctx.vertx();
+        EmailService.sendEmailAsync(vertx, email, "Your OTP Code", "Your OTP code is: " + otp);
 
         ctx.response()
                 .putHeader("content-type", "application/json")
@@ -39,14 +41,12 @@ public class OTPHandler {
                     .putHeader("content-type", "application/json")
                     .end("{\"message\":\"Invalid OTP\"}");
         }
-        }
+    }
 
     public static boolean verifyOTP(String email, String otp) {
-
         // Retrieve OTP from Redis
         String sOtp = RedisService.getOtp(email);
         RedisService.close();
         return Objects.equals(otp, sOtp);
     }
-
-    }
+}

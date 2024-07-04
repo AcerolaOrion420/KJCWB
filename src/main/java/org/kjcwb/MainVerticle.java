@@ -1,4 +1,6 @@
 package org.kjcwb;
+
+import org.kjcwb.Packages.Handlers.*;
 import org.kjcwb.Packages.*;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -7,10 +9,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
-import org.kjcwb.Packages.Handlers.JwtAuthProvider;
-import org.kjcwb.Packages.Handlers.LoginHandler;
-import org.kjcwb.Packages.Handlers.OTPHandler;
-import org.kjcwb.Packages.Handlers.RoleHandler;
+
 
 public class MainVerticle extends AbstractVerticle {
     @Override
