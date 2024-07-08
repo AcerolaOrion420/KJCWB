@@ -1,7 +1,4 @@
 package org.kjcwb;
-
-import org.kjcwb.Packages.Handlers.*;
-import org.kjcwb.Packages.*;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -9,9 +6,14 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
-
+import org.kjcwb.Packages.Handlers.*;
+import org.kjcwb.Packages.*;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 
 public class MainVerticle extends AbstractVerticle {
+    private static final Logger logger = LoggerFactory.getLogger(MainVerticle.class);
+
     @Override
     public void start(Promise<Void> startPromise) {
         Router router = Router.router(vertx);
@@ -19,10 +21,10 @@ public class MainVerticle extends AbstractVerticle {
         try {
             JwtAuthProvider.initialize(vertx);
         } catch (Exception e) {
+            logger.error("Failed to initialize JwtAuthProvider: " + e.getMessage(), e);
             startPromise.fail("Failed to initialize JwtAuthProvider: " + e.getMessage());
             return;
         }
-
 
         // Enable CORS
         router.route().handler(CorsHandler.create("*")
@@ -49,8 +51,6 @@ public class MainVerticle extends AbstractVerticle {
         // Routes for User
         router.route("/protected/user/*").handler(RoleHandler::handleUserRole);
         router.get("/protected/user/resource").handler(JwtAuthProvider::handleProtectedRoute);
-
-        // New Route for User Sessions
         router.post("/protected/user/sessions").handler(StudentUpcomingSession::getUpcomingsession);
 
         // Routes for Counsellor
@@ -66,8 +66,9 @@ public class MainVerticle extends AbstractVerticle {
         vertx.createHttpServer().requestHandler(router).listen(8888, http -> {
             if (http.succeeded()) {
                 startPromise.complete();
-                System.out.println("HTTP server started on port 8888");
+                logger.info("HTTP server started on port 8888");
             } else {
+                logger.error("Failed to start HTTP server: " + http.cause().getMessage(), http.cause());
                 startPromise.fail("Failed to start HTTP server: " + http.cause().getMessage());
             }
         });
@@ -77,9 +78,9 @@ public class MainVerticle extends AbstractVerticle {
         Vertx vertx = Vertx.vertx();
         vertx.deployVerticle(new MainVerticle(), res -> {
             if (res.succeeded()) {
-                System.out.println("Deployed");
+                logger.info("MainVerticle deployed successfully.");
             } else {
-                System.out.println("Deployment Failed: " + res.cause().getMessage());
+                logger.error("Deployment Failed: " + res.cause().getMessage(), res.cause());
             }
         });
     }
