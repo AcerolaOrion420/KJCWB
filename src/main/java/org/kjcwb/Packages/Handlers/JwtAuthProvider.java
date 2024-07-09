@@ -7,7 +7,6 @@ import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.auth.JWTOptions;
 import io.vertx.ext.web.RoutingContext;
-import org.kjcwb.Packages.Services.RedisService;
 
 public class JwtAuthProvider {
     private static JWTAuth jwtAuth;
@@ -30,12 +29,33 @@ public class JwtAuthProvider {
     }
 
     public static void handleTokenRenewal(RoutingContext context) {
-        String email = context.user().principal().getString("email");
+        String currentToken = context.request().getHeader("Authorization");
+        if (currentToken != null && currentToken.startsWith("Bearer ")) {
+            currentToken = currentToken.substring(7); // Remove "Bearer " prefix
+        } else {
+            context.response().setStatusCode(401).end("Invalid token format");
+            return;
+        }
 
-        // Renew TTL in Redis
-        RedisService.storeJwt("jwt"+email, context.request().getHeader("Authorization").substring(7));
+        jwtAuth.authenticate(new JsonObject().put("token", currentToken), res -> {
+            if (res.succeeded()) {
+                // Token is still valid, proceed with renewal
+                String email = res.result().principal().getString("email");
+                String role = res.result().principal().getString("role");
 
-        context.next();
+                // Generate a new token
+                String newToken = generateToken(email, role);
+
+                // Set the new token in the response header
+                context.response()
+                        .putHeader("Authorization", "Bearer " + newToken)
+                        .setStatusCode(200)
+                        .end(new JsonObject().put("message", "Token renewed successfully").encode());
+            } else {
+                // Token is invalid or expired
+                context.response().setStatusCode(401).end("Token is invalid or expired");
+            }
+        });
     }
 
     public static void handleProtectedRoute(RoutingContext context) {
@@ -44,9 +64,24 @@ public class JwtAuthProvider {
                 .putHeader("content-type", "application/json")
                 .end("{\"message\":\"Access granted\"}");
     }
-    public static String generateToken(String email,String role) {
+
+    public static String generateToken(String email, String role) {
+        int expiryTime = getExpiryTimeForRole(role);
         return jwtAuth.generateToken(
-                new JsonObject().put("email", email).put("role",role),
-                new JWTOptions().setExpiresInMinutes(60));
+                new JsonObject().put("email", email).put("role", role),
+                new JWTOptions().setExpiresInMinutes(expiryTime));
+    }
+
+    private static int getExpiryTimeForRole(String role) {
+        switch (role.toLowerCase()) {
+            case "user":
+                return 5;  // 5 minutes for users
+            case "counsellor":
+                return 15; // 15 minutes for counsellors
+            case "admin":
+                return 15; // 15 minutes for admins (you can adjust this as needed)
+            default:
+                return 5;  // Default to 5 minutes for unknown roles
+        }
     }
 }
