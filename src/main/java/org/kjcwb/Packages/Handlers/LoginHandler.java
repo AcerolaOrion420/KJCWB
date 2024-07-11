@@ -19,7 +19,7 @@ public class LoginHandler {
         System.out.println(JwtAuthProvider.getJwtAuth());
 
         if (user != null && BCrypt.checkpw(password, user.getString("password"))) {
-            String token = JwtAuthProvider.generateToken(email,user.getString("role"));
+            String token = JwtAuthProvider.generateToken(email,user.getString("role"),user.getString("_id"));
             RedisService.storeJwt("jwt"+email, token);
 
             context.response()
@@ -37,8 +37,11 @@ public class LoginHandler {
     public static void handleUserLogin(RoutingContext ctx){
         String email = ctx.getBodyAsJson().getString("email");
         String otp = ctx.getBodyAsJson().getString("otp");
+        MongoService.initialize("mongodb://localhost:27017", "admin", "Student");
+        Document user = MongoService.find("email", email);
+
         if (OTPHandler.verifyOTP(email, otp)) {
-            String token = JwtAuthProvider.generateToken(email,"user");
+            String token = JwtAuthProvider.generateToken(email,"user",user.getString("_id"));
             RedisService.storeJwt("jwt"+email, token);
             ctx.response()
                     .putHeader("content-type", "application/json")
@@ -48,6 +51,7 @@ public class LoginHandler {
                     .putHeader("content-type", "application/json")
                     .end("{\"message\":\"Invalid OTP\"}");
         }
+        MongoService.close();
     }
 
     public static void handleReset(RoutingContext context){

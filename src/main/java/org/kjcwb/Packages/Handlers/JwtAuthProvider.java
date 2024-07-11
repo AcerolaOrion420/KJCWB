@@ -42,18 +42,17 @@ public class JwtAuthProvider {
                 // Token is still valid, proceed with renewal
                 String email = res.result().principal().getString("email");
                 String role = res.result().principal().getString("role");
+                String id = res.result().principal().getString("id");
 
                 // Generate a new token
-                String newToken = generateToken(email, role);
+                String newToken = generateToken(email, role, id);
 
-                // Set the new token in the response header
+                // Set the new token in the response header and body
                 context.response()
                         .putHeader("Authorization", "Bearer " + newToken)
-                        .setStatusCode(200)
-                        .end(new JsonObject().put("message", "Token renewed successfully").encode());
+                        .end(new JsonObject().put("newtoken", newToken).encode());
             } else {
-                // Token is invalid or expired
-                context.response().setStatusCode(401).end("Token is invalid or expired");
+                context.response().setStatusCode(401).end("Token expired or invalid");
             }
         });
     }
@@ -65,10 +64,10 @@ public class JwtAuthProvider {
                 .end("{\"message\":\"Access granted\"}");
     }
 
-    public static String generateToken(String email, String role) {
+    public static String generateToken(String email, String role, String id) {
         int expiryTime = getExpiryTimeForRole(role);
         return jwtAuth.generateToken(
-                new JsonObject().put("email", email).put("role", role),
+                new JsonObject().put("email", email).put("role", role).put("id", id),
                 new JWTOptions().setExpiresInMinutes(expiryTime));
     }
 

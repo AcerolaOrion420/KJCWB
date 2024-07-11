@@ -31,7 +31,8 @@ public class MainVerticle extends AbstractVerticle {
                 .allowedMethod(io.vertx.core.http.HttpMethod.GET)
                 .allowedMethod(io.vertx.core.http.HttpMethod.POST)
                 .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
-                .allowedHeader("Content-Type"));
+                .allowedHeader("Content-Type")
+                .allowedHeader("Authorization"));
 
         // Enable BodyHandler to handle JSON bodies
         router.route().handler(BodyHandler.create());
@@ -47,6 +48,7 @@ public class MainVerticle extends AbstractVerticle {
         // Routes protection
         router.route("/protected/*").handler(JWTAuthHandler.create(JwtAuthProvider.getJwtAuth()));
         router.route("/protected/*").handler(JwtAuthProvider::handleTokenRenewal);
+        router.get("/protected/test").handler(Test::handleTest);
 
         // Routes for User
         router.route("/protected/user/*").handler(RoleHandler::handleUserRole);
