@@ -1,4 +1,4 @@
-package org.kjcwb.Packages;
+package org.kjcwb.Packages.Counsellor;
 import org.kjcwb.Packages.Services.MongoService;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
@@ -12,12 +12,9 @@ public class FetchProfileDetails {
 
     public static void handleFetchProfileDetails(RoutingContext context) {
         MongoService.initialize("mongodb://localhost:27017","admin","Counsellor");
-        JsonObject requestBody = context.getBodyAsJson();
-        if (requestBody == null) {
-            context.response().setStatusCode(400).putHeader("content-type", "application/json").end();
-            return;
-        }
-        String email = requestBody.getString("email");
+
+        String email = context.user().principal().getString("email");
+
         if (email == null) {
             context.response()
                     .putHeader("content-type", "text/plain")

@@ -1,4 +1,4 @@
-package org.kjcwb.Packages;
+package org.kjcwb.Packages.Counsellor;
 import org.kjcwb.Packages.Services.MongoService;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;

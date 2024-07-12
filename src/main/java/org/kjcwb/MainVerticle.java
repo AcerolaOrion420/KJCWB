@@ -6,10 +6,14 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
+import org.kjcwb.Packages.Counsellor.CounsellorUpcomingSessions;
+import org.kjcwb.Packages.Counsellor.FetchProfileDetails;
+import org.kjcwb.Packages.Counsellor.UpdatePhoneNumber;
 import org.kjcwb.Packages.Handlers.*;
 import org.kjcwb.Packages.*;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.kjcwb.Packages.Student.StudentUpcomingSession;
 
 public class MainVerticle extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(MainVerticle.class);
@@ -32,7 +36,9 @@ public class MainVerticle extends AbstractVerticle {
                 .allowedMethod(io.vertx.core.http.HttpMethod.POST)
                 .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
                 .allowedHeader("Content-Type")
-                .allowedHeader("Authorization"));
+                .allowedHeader("Authorization")
+                .allowedHeader("newtoken"));
+
 
         // Enable BodyHandler to handle JSON bodies
         router.route().handler(BodyHandler.create());
@@ -44,6 +50,7 @@ public class MainVerticle extends AbstractVerticle {
         router.post("/reset").handler(LoginHandler::handleReset);
         router.post("/forget").handler(LoginHandler::handleForget);
         router.post("/userverify").handler(LoginHandler::handleUserLogin);
+        router.get("/counsellors").handler(Counsellors::getCounsellor);
 
         // Routes protection
         router.route("/protected/*").handler(JWTAuthHandler.create(JwtAuthProvider.getJwtAuth()));
@@ -52,18 +59,16 @@ public class MainVerticle extends AbstractVerticle {
 
         // Routes for User
         router.route("/protected/user/*").handler(RoleHandler::handleUserRole);
-        router.get("/protected/user/resource").handler(JwtAuthProvider::handleProtectedRoute);
-        router.post("/protected/user/sessions").handler(StudentUpcomingSession::getUpcomingsession);
+        router.get("/protected/user/sessions").handler(StudentUpcomingSession::getUpcomingSession);
 
         // Routes for Counsellor
         router.route("/protected/counsellor/*").handler(RoleHandler::handleCounsellorRole);
-        router.get("/protected/counsellor/resource").handler(JwtAuthProvider::handleProtectedRoute);
+        router.get("/protected/counsellor/sessions").handler(CounsellorUpcomingSessions::getUpcomingSession);
         router.post("/protected/counsellor/updatePhoneNumber").handler(UpdatePhoneNumber::handleUpdatePhoneNumber);
-        router.post("/protected/counsellor/getprofiledetails").handler(FetchProfileDetails::handleFetchProfileDetails);
+        router.get("/protected/counsellor/getprofiledetails").handler(FetchProfileDetails::handleFetchProfileDetails);
 
         // Routes for Admin
         router.route("/protected/admin/*").handler(RoleHandler::handleAdminRole);
-        router.get("/protected/admin/resource").handler(JwtAuthProvider::handleProtectedRoute);
 
         vertx.createHttpServer().requestHandler(router).listen(8888, http -> {
             if (http.succeeded()) {

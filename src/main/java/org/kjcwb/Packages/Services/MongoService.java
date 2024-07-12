@@ -15,7 +15,6 @@ public class MongoService {
         mongoClient = MongoClients.create(connectionString);
         MongoDatabase database = mongoClient.getDatabase(dbName);
         collection = database.getCollection(collectionName);
-        System.out.println("Connected to MongoDB");
     }
 
     public static void insert(Document document) {

@@ -48,9 +48,11 @@ public class JwtAuthProvider {
                 String newToken = generateToken(email, role, id);
 
                 // Set the new token in the response header and body
-                context.response()
-                        .putHeader("Authorization", "Bearer " + newToken)
-                        .end(new JsonObject().put("newtoken", newToken).encode());
+                context.response().putHeader("newtoken", newToken);
+                context.response().putHeader("Access-Control-Expose-Headers", "newtoken");
+
+                // Continue to the next handler
+                context.next();
             } else {
                 context.response().setStatusCode(401).end("Token expired or invalid");
             }
