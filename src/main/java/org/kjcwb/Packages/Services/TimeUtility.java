@@ -44,11 +44,11 @@ public class TimeUtility {
         return now.toInstant(ZoneOffset.UTC).toEpochMilli();
     }
 
-    public long timeToMilliseconds(String time) {
+    public int timeToMilliseconds(String time) {
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
         try {
             Date dateObj = sdf.parse(time);
-            long milliseconds = dateObj.getTime() - sdf.parse("12:00 AM").getTime();
+            int milliseconds = (int) (dateObj.getTime() - sdf.parse("12:00 AM").getTime());
             return milliseconds;
         } catch (ParseException e) {
             e.printStackTrace();

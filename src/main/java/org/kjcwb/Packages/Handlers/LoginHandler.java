@@ -11,7 +11,7 @@ import org.mindrot.jbcrypt.BCrypt;
 public class LoginHandler {
 
     public static void handleLogin(RoutingContext context) {
-        MongoService.initialize("mongodb://localhost:27017", "admin", "Counsellor");
+        MongoService.initialize( "Counsellor");
         String email = context.getBodyAsJson().getString("email");
         String password = context.getBodyAsJson().getString("password");
 
@@ -37,7 +37,7 @@ public class LoginHandler {
     public static void handleUserLogin(RoutingContext ctx){
         String email = ctx.getBodyAsJson().getString("email");
         String otp = ctx.getBodyAsJson().getString("otp");
-        MongoService.initialize("mongodb://localhost:27017", "admin", "Student");
+        MongoService.initialize(  "Student");
         Document user = MongoService.find("email", email);
 
         if (OTPHandler.verifyOTP(email, otp)) {
@@ -55,7 +55,7 @@ public class LoginHandler {
     }
 
     public static void handleReset(RoutingContext context){
-        MongoService.initialize("mongodb://localhost:27017", "admin", "Counsellor");
+        MongoService.initialize("Counsellor");
         String email = context.getBodyAsJson().getString("email");
         String password = context.getBodyAsJson().getString("password");
         String newpassword = context.getBodyAsJson().getString("newpassword");
@@ -76,7 +76,7 @@ public class LoginHandler {
         MongoService.close();
     }
     public static void handleForget(RoutingContext context){
-        MongoService.initialize("mongodb://localhost:27017", "admin", "Counsellor");
+        MongoService.initialize("Counsellor");
         String email = context.getBodyAsJson().getString("email");
         String newpassword = context.getBodyAsJson().getString("newpassword");
         String hashpwd = BCrypt.hashpw(newpassword, BCrypt.gensalt());
@@ -84,7 +84,7 @@ public class LoginHandler {
         System.out.println(email);
         Document user = null;
         user = MongoService.find("email", email);
-        if (user != null ){
+        if ((user != null) && (newpassword != null)){
             MongoService.update("email",email,"password",hashpwd);
             context.response()
                     .putHeader("content-type", "application/json")

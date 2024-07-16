@@ -20,7 +20,7 @@ public class Counsellors {
         try {
             // Query to find documents where "Active" is true
             Document query = new Document("Active", true).append("role","counsellor");
-            MongoService.initialize("mongodb://localhost:27017", "admin", "Counsellor");
+            MongoService.initialize( "Counsellor");
             // Fetch all documents matching the query
             List<Document> documents = MongoService.findall(query);
 

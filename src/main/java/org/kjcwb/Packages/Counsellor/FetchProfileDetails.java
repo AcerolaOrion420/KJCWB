@@ -11,7 +11,7 @@ import java.util.List;
 public class FetchProfileDetails {
 
     public static void handleFetchProfileDetails(RoutingContext context) {
-        MongoService.initialize("mongodb://localhost:27017","admin","Counsellor");
+        MongoService.initialize("Counsellor");
 
         String email = context.user().principal().getString("email");
 

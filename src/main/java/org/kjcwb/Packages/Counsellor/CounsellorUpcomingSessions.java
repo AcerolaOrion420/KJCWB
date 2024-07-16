@@ -42,7 +42,7 @@ public class CounsellorUpcomingSessions {
                     .end(Json.encodePrettily(Collections.singletonMap("error", "Invalid date format")));
             return;
         }
-        MongoService.initialize("mongodb://localhost:27017", "admin", "Booked_Slots");
+        MongoService.initialize( "Booked_Slots");
         List<Document> upcomingSessionList = new ArrayList<>();
         Document query = new Document("counselor_id", counsellorId).append("date_mils", receivedDateMillis);
 
@@ -68,6 +68,7 @@ public class CounsellorUpcomingSessions {
     }
 
     private static Document processDocument(Document doc) {
+        MongoService.initialize(  "Student");
         long milliseconds = doc.getLong("date_mils");
         LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochMilli(milliseconds), ZoneOffset.UTC);
         String formattedDate = timeUtility.dateFormatter(date);

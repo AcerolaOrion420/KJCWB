@@ -11,8 +11,10 @@ import org.kjcwb.Packages.Counsellor.FetchProfileDetails;
 import org.kjcwb.Packages.Counsellor.UpdatePhoneNumber;
 import org.kjcwb.Packages.Handlers.*;
 import org.kjcwb.Packages.*;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.kjcwb.Packages.Student.SlotBooking;
+import org.kjcwb.Packages.Student.Slots;
 import org.kjcwb.Packages.Student.StudentUpcomingSession;
 
 public class MainVerticle extends AbstractVerticle {
@@ -60,10 +62,15 @@ public class MainVerticle extends AbstractVerticle {
         // Routes for User
         router.route("/protected/user/*").handler(RoleHandler::handleUserRole);
         router.get("/protected/user/sessions").handler(StudentUpcomingSession::getUpcomingSession);
+        Slots slots = new Slots();
+        router.post("/protected/user/slots").handler(slots::getSlots);
+        SlotBooking s = new SlotBooking();
+        router.post("/protected/user/slotbooking").handler(s::getSlots);
+        router.get("/protected/user/getstudentinfo").handler(slots::getStudentInfo);
 
         // Routes for Counsellor
         router.route("/protected/counsellor/*").handler(RoleHandler::handleCounsellorRole);
-        router.get("/protected/counsellor/sessions").handler(CounsellorUpcomingSessions::getUpcomingSession);
+        router.post("/protected/counsellor/sessions").handler(CounsellorUpcomingSessions::getUpcomingSession);
         router.post("/protected/counsellor/updatePhoneNumber").handler(UpdatePhoneNumber::handleUpdatePhoneNumber);
         router.get("/protected/counsellor/getprofiledetails").handler(FetchProfileDetails::handleFetchProfileDetails);
 

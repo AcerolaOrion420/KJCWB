@@ -76,7 +76,7 @@ public class JwtAuthProvider {
     private static int getExpiryTimeForRole(String role) {
         switch (role.toLowerCase()) {
             case "user":
-                return 5;  // 5 minutes for users
+                return 30;  // 5 minutes for users
             case "counsellor":
                 return 15; // 15 minutes for counsellors
             case "admin":

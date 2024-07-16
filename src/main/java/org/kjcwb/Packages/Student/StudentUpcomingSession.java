@@ -20,7 +20,6 @@ public class StudentUpcomingSession {
     public static void getUpcomingSession(RoutingContext ctx) {
 
         String studentId = ctx.user().principal().getString("id");
-        System.out.println(studentId);
         if (studentId == null) {
             ctx.response().setStatusCode(400).putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(Collections.singletonMap("error", "Missing Student ID")));
@@ -37,7 +36,7 @@ public class StudentUpcomingSession {
         LocalTime adjustedTime = currentTime.minusMinutes(timerange);
         LocalDateTime currentDateTime = LocalDateTime.of(today, adjustedTime);
         long currentMillis = currentDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
-        MongoService.initialize("mongodb://localhost:27017", "admin", "Booked_Slots");
+        MongoService.initialize(  "Booked_Slots");
         Document query = new Document("student_id", studentId)
             .append("date_mils", new Document("$gte", todayMillis));
 
@@ -85,7 +84,7 @@ public class StudentUpcomingSession {
                     .append("_id", doc.getString("_id"));
             String counselorId = doc.getString("counselor_id");
 
-            MongoService.initialize("mongodb://localhost:27017", "admin", "Counsellor");
+            MongoService.initialize(  "Counsellor");
             Document counsellorDoc = MongoService.find("_id", counselorId);
             if (counsellorDoc != null) {
                 booked.append("counselor_name", counsellorDoc.getString("name"));
@@ -103,7 +102,7 @@ public class StudentUpcomingSession {
     private static int getTimeRange() {
         try {
             // Initialize connection to Time_Range collection
-            MongoService.initialize("mongodb://localhost:27017", "admin", "Time_Range");
+            MongoService.initialize("Time_Range");
             Document result = MongoService.findall(new Document()).stream().findFirst().orElse(null);
             if (result != null) {
                 return result.getInteger("range");

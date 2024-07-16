@@ -10,10 +10,11 @@ import java.util.List;
 public class MongoService {
     private static MongoClient mongoClient;
     private static MongoCollection<Document> collection;
-
-    public static void initialize(String connectionString, String dbName, String collectionName) {
-        mongoClient = MongoClients.create(connectionString);
-        MongoDatabase database = mongoClient.getDatabase(dbName);
+    private static final String connection_string = "mongodb://localhost:27017";
+    private static final String databasename = "admin";
+    public static void initialize(String collectionName) {
+        mongoClient = MongoClients.create(connection_string);
+        MongoDatabase database = mongoClient.getDatabase(databasename);
         collection = database.getCollection(collectionName);
     }
 

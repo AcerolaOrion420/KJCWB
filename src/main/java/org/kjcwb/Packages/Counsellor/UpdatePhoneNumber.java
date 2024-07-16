@@ -5,14 +5,13 @@ import io.vertx.ext.web.RoutingContext;
 
 public class UpdatePhoneNumber {
     public static void handleUpdatePhoneNumber(RoutingContext context) {
-        MongoService.initialize("mongodb://localhost:27017", "admin","Counsellor");
+        MongoService.initialize( "Counsellor");
         JsonObject requestBody = context.getBodyAsJson();
         if (requestBody == null) {
             context.response().setStatusCode(400).putHeader("content-type", "application/json").end();
             return;
         }
-
-        String email = requestBody.getString("email");
+        String email = context.user().principal().getString("email");
         String newPhoneNumber = requestBody.getString("phoneNo");
 
         if (email == null || newPhoneNumber == null) {
