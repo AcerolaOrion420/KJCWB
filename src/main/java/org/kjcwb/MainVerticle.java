@@ -6,6 +6,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
+import org.kjcwb.Packages.Admin.CounsellorList;
 import org.kjcwb.Packages.Counsellor.CounsellorUpcomingSessions;
 import org.kjcwb.Packages.Counsellor.FetchProfileDetails;
 import org.kjcwb.Packages.Counsellor.UpdatePhoneNumber;
@@ -53,6 +54,9 @@ public class MainVerticle extends AbstractVerticle {
         router.post("/forget").handler(LoginHandler::handleForget);
         router.post("/userverify").handler(LoginHandler::handleUserLogin);
         router.get("/counsellors").handler(Counsellors::getCounsellor);
+        router.get("/counsellorlist").handler(CounsellorList::getCounsellor);
+        router.post("/addcounsellor").handler(CounsellorList::addCounsellor);
+
 
         // Routes protection
         router.route("/protected/*").handler(JWTAuthHandler.create(JwtAuthProvider.getJwtAuth()));
