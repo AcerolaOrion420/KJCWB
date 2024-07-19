@@ -11,7 +11,7 @@ import java.util.List;
 public class FetchProfileDetails {
 
     public static void handleFetchProfileDetails(RoutingContext context) {
-        MongoService.initialize("Counsellor");
+        MongoService.initialize("Counsellors");
 
         String email = context.user().principal().getString("email");
 
@@ -39,14 +39,14 @@ public class FetchProfileDetails {
 
                 jsonArray.add(profileDetails);
 
-                // Printing to console for debugging
-                System.out.println("Name: " + document.getString("name"));
-                System.out.println("Employee ID: " + document.getString("employeeId"));
-                System.out.println("Gender: " + document.getString("gender"));
-                System.out.println("DOB: " + document.getString("dob"));
-                System.out.println("Email: " + document.getString("email"));
-                System.out.println("Phone No: " + document.getString("phoneNo"));
-                System.out.println("------------------------------------");
+//                // Printing to console for debugging
+//                System.out.println("Name: " + document.getString("name"));
+//                System.out.println("Employee ID: " + document.getString("employeeId"));
+//                System.out.println("Gender: " + document.getString("gender"));
+//                System.out.println("DOB: " + document.getString("dob"));
+//                System.out.println("Email: " + document.getString("email"));
+//                System.out.println("Phone No: " + document.getString("phoneNo"));
+//                System.out.println("------------------------------------");
             }
 
             context.response()

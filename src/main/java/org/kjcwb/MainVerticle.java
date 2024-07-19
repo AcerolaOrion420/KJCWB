@@ -7,15 +7,14 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import org.kjcwb.Packages.Admin.CounsellorList;
-import org.kjcwb.Packages.Counsellor.CounsellorUpcomingSessions;
-import org.kjcwb.Packages.Counsellor.FetchProfileDetails;
-import org.kjcwb.Packages.Counsellor.UpdatePhoneNumber;
+import org.kjcwb.Packages.Counsellor.*;
 import org.kjcwb.Packages.Handlers.*;
 import org.kjcwb.Packages.*;
+import org.kjcwb.Packages.Student.AvailableSlotsForBooking;
+import org.kjcwb.Packages.Student.BookASlot;
+import org.kjcwb.Packages.Student.StudentSlotCancellation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.kjcwb.Packages.Student.SlotBooking;
-import org.kjcwb.Packages.Student.Slots;
 import org.kjcwb.Packages.Student.StudentUpcomingSession;
 
 public class MainVerticle extends AbstractVerticle {
@@ -46,40 +45,68 @@ public class MainVerticle extends AbstractVerticle {
         // Enable BodyHandler to handle JSON bodies
         router.route().handler(BodyHandler.create());
 
-        // Routes for Login
+        // Unprotected Routes
         router.post("/generate").handler(OTPHandler::generateOTP);
         router.post("/verify").handler(OTPHandler::verifyOTP);
         router.post("/login").handler(LoginHandler::handleLogin);
         router.post("/reset").handler(LoginHandler::handleReset);
         router.post("/forget").handler(LoginHandler::handleForget);
         router.post("/userverify").handler(LoginHandler::handleUserLogin);
-        router.get("/counsellors").handler(Counsellors::getCounsellor);
+        router.get("/counsellors").handler(ActiveCounsellors::getCounsellor);
         router.get("/counsellorlist").handler(CounsellorList::getCounsellor);
         router.post("/addcounsellor").handler(CounsellorList::addCounsellor);
+        AGgrid ag = new AGgrid();
+        router.get("/aggrid").handler(ag::fetchAgGridData);
 
 
-        // Routes protection
+        // Protected Routes
         router.route("/protected/*").handler(JWTAuthHandler.create(JwtAuthProvider.getJwtAuth()));
         router.route("/protected/*").handler(JwtAuthProvider::handleTokenRenewal);
         router.get("/protected/test").handler(Test::handleTest);
 
-        // Routes for User
-        router.route("/protected/user/*").handler(RoleHandler::handleUserRole);
-        router.get("/protected/user/sessions").handler(StudentUpcomingSession::getUpcomingSession);
-        Slots slots = new Slots();
-        router.post("/protected/user/slots").handler(slots::getSlots);
-        SlotBooking s = new SlotBooking();
-        router.post("/protected/user/slotbooking").handler(s::getSlots);
-        router.get("/protected/user/getstudentinfo").handler(slots::getStudentInfo);
 
-        // Routes for Counsellor
+
+        // User Routes
+        StudentUpcomingSession sus = new StudentUpcomingSession();
+        AvailableSlotsForBooking slots = new AvailableSlotsForBooking();
+        BookASlot bookslot = new BookASlot();
+        StudentSlotCancellation scc = new StudentSlotCancellation();
+
+        router.route("/protected/user/*").handler(RoleHandler::handleUserRole);
+        router.get("/protected/user/sessions").handler(sus::getUpcomingSession);
+        router.post("/protected/user/slots").handler(slots::getSlots);
+        router.post("/protected/user/slotbooking").handler(bookslot::setSlots);
+        router.get("/protected/user/getstudentinfo").handler(slots::getStudentInfo);
+        router.post("/protected/user/slotcancel").handler(scc::slotCancellation);
+
+
+
+        // Counsellor Routes
+        CounsellorUpcomingSession cus = new CounsellorUpcomingSession();
+        CounsellorBlockCalendar cbc = new CounsellorBlockCalendar();
+        CounsellorBlockCalendarSubmit cbcs = new CounsellorBlockCalendarSubmit();
+        CounsellorFormSubmit cfs = new CounsellorFormSubmit();
+
+
         router.route("/protected/counsellor/*").handler(RoleHandler::handleCounsellorRole);
-        router.post("/protected/counsellor/sessions").handler(CounsellorUpcomingSessions::getUpcomingSession);
+        router.post("/protected/counsellor/sessions").handler(cus::getUpcomingSession);
         router.post("/protected/counsellor/updatePhoneNumber").handler(UpdatePhoneNumber::handleUpdatePhoneNumber);
         router.get("/protected/counsellor/getprofiledetails").handler(FetchProfileDetails::handleFetchProfileDetails);
+        router.post("/protected/counsellor/availableslots").handler(cbc::getAvailableSlots);
+        router.post("/protected/counsellor/blockedslots").handler(cbc::getBlockedSlots);
+        router.post("/protected/counsellor/blockslots").handler(cbcs::blockSlots);
+        router.post("/protected/counsellor/unblockslots").handler(cbcs::unblockSlots);
+        router.post("/protected/counsellor/fetchstudent").handler(cfs::fetchStudent);
+        router.post("/protected/counsellor/formsubmit").handler(cfs::updateSession);
 
-        // Routes for Admin
+
+
+        // Admin Routes
         router.route("/protected/admin/*").handler(RoleHandler::handleAdminRole);
+
+
+
+
 
         vertx.createHttpServer().requestHandler(router).listen(8888, http -> {
             if (http.succeeded()) {

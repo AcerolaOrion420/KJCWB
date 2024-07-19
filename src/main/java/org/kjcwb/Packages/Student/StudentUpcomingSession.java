@@ -7,71 +7,88 @@ import io.vertx.ext.web.RoutingContext;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.time.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+
 public class StudentUpcomingSession {
+    private final MongoDatabase database;
     private static final Logger LOGGER = LoggerFactory.getLogger(StudentUpcomingSession.class);
-    private static final TimeUtility timeUtility = new TimeUtility();
+    private final TimeUtility timeUtility = new TimeUtility();
 
-    public static void getUpcomingSession(RoutingContext ctx) {
+    public StudentUpcomingSession() {
+        database = DBConnectivity.connectToDatabase("admin");
+        if (database != null) {
+            LOGGER.info("StudentUpcomingSession class initialized and connected to DB");
+        } else {
+            LOGGER.error("StudentUpcomingSession class failed to connect to the database");
+        }
+    }
 
+    public void getUpcomingSession(RoutingContext ctx) {
         String studentId = ctx.user().principal().getString("id");
         if (studentId == null) {
             ctx.response().setStatusCode(400).putHeader("content-type", "application/json")
-                    .end(Json.encodePrettily(Collections.singletonMap("error", "Missing Student ID")));
+                    .end(Json.encodePrettily(Collections.singletonMap("error", "Missing Session ID")));
             return;
         }
 
         List<Document> upcomingSessionList = new ArrayList<>();
+        if (database != null) {
+            MongoCollection<Document> collection = database.getCollection("Booked_slots");
 
-        LocalDate today = LocalDate.now();
-        long todayMillis = today.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
-        LocalTime currentTime = LocalTime.now();
+            LocalDate today = LocalDate.now();
+            long todayMillis = today.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+            LocalTime currentTime = LocalTime.now();
 
-        int timerange = getTimeRange();
-        LocalTime adjustedTime = currentTime.minusMinutes(timerange);
-        LocalDateTime currentDateTime = LocalDateTime.of(today, adjustedTime);
-        long currentMillis = currentDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
-        MongoService.initialize(  "Booked_Slots");
-        Document query = new Document("student_id", studentId)
-            .append("date_mils", new Document("$gte", todayMillis));
+            int timerange = getTimeRange();
+            LocalTime adjustedTime = currentTime.minusMinutes(timerange);
+            LocalDateTime currentDateTime = LocalDateTime.of(today, adjustedTime);
+            long currentMillis = currentDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
 
+            Document query = new Document("student_id", studentId)
+                    .append("slot_status", new Document("$ne", "Cancelled"))
+                    .append("date_milliseconds", new Document("$gte", todayMillis));
 
-        try {
-            List<Document> documents = MongoService.findall(query);
-            for (Document doc : documents) {
-                processDocument(doc, currentMillis, upcomingSessionList);
+            try (MongoCursor<Document> cursor = collection.find(query).iterator()) {
+                while (cursor.hasNext()) {
+                    Document doc = cursor.next();
+                    processDocument(doc, currentMillis, upcomingSessionList);
+                }
+
+                if (upcomingSessionList.isEmpty()) {
+                    ctx.response().putHeader("content-type", "application/json")
+                            .end(Json.encodePrettily(Collections.singletonMap("message", "No slots have been booked!")));
+                } else {
+                    ctx.response().putHeader("content-type", "application/json")
+                            .end(Json.encodePrettily(upcomingSessionList));
+                }
+
+            } catch (Exception e) {
+                LOGGER.error("Error fetching sessions: {}", e.getMessage(), e);
+                ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
+                        .end(Json.encodePrettily(Collections.singletonMap("error", "Internal Server Error")));
             }
-
-            if (upcomingSessionList.isEmpty()) {
-                ctx.response().putHeader("content-type", "application/json")
-                        .end(Json.encodePrettily(Collections.singletonMap("message", "No slots have been booked!")));
-            } else {
-                ctx.response().putHeader("content-type", "application/json")
-                        .end(Json.encodePrettily(upcomingSessionList));
-            }
-
-        }
-        catch (Exception e) {
-            LOGGER.error("Error fetching sessions: {}", e.getMessage(), e);
+        } else {
+            LOGGER.error("StudentUpcomingSession class failed to connect to the database.");
             ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(Collections.singletonMap("error", "Internal Server Error")));
-        }MongoService.close();
+        }
     }
 
-    private static void processDocument(Document doc, long currentMillis, List<Document> upcomingSessionList) {
-
-        long milliseconds = doc.getLong("date_mils");
+    private void processDocument(Document doc, long currentMillis, List<Document> upcomingSessionList) {
+        long milliseconds = doc.getLong("date_milliseconds");
         LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochMilli(milliseconds), ZoneOffset.UTC);
         String formattedDate = timeUtility.dateFormatter(date);
 
-        long dateMillis = doc.getLong("date_mils");
-        long slotStartTimeMillis = doc.getInteger("slot_s_time_m");
-        long slotEndTimeMillis = doc.getInteger("slot_e_time_m");
+        long dateMillis = doc.getLong("date_milliseconds");
+        long slotStartTimeMillis = doc.getInteger("slot_start_time_milliseconds");
+        long slotEndTimeMillis = doc.getInteger("slot_end_time_milliseconds");
 
         String formattedStartTime = timeUtility.timeFormatter(slotStartTimeMillis);
         String formattedEndTime = timeUtility.timeFormatter(slotEndTimeMillis);
@@ -79,40 +96,43 @@ public class StudentUpcomingSession {
         long combinedMillis = dateMillis + slotEndTimeMillis;
 
         if (currentMillis <= combinedMillis) {
-            Document booked = new Document("student_id", doc.getString("student_id"))
-                    .append("counselor_id", doc.getString("counselor_id"))
-                    .append("_id", doc.getString("_id"));
-            String counselorId = doc.getString("counselor_id");
+            Document booked = new Document("_id",doc.getString("_id"));
+            //.append("_id",doc.getString("_id"));
+            String counselorId = doc.getString("counsellor_id");
 
-            MongoService.initialize(  "Counsellor");
-            Document counsellorDoc = MongoService.find("_id", counselorId);
-            if (counsellorDoc != null) {
-                booked.append("counselor_name", counsellorDoc.getString("name"));
+            MongoCollection<Document> counsellorCollection = database.getCollection("Counsellors");
+            Document query = new Document("_id", counselorId);
+
+            try (MongoCursor<Document> cursor = counsellorCollection.find(query).iterator()) {
+                if (cursor.hasNext()) {
+                    Document counsellorDoc = cursor.next();
+                    booked.append("counselor_name", counsellorDoc.getString("name"));
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error fetching counsellor details: {}", e.getMessage(), e);
             }
 
             booked.append("date", formattedDate);
-            booked.append("slot_s_time_m", formattedStartTime);
-            booked.append("slot_e_time_m", formattedEndTime);
+            booked.append("start_time", formattedStartTime);
+            booked.append("end_time", formattedEndTime);
             upcomingSessionList.add(booked);
         }
-        MongoService.close();
     }
 
+    private int getTimeRange() {
+        if (database != null) {
+            MongoCollection<Document> collection = database.getCollection("Time_Range");
+            Document result = collection.find().first();
 
-    private static int getTimeRange() {
-        try {
-            // Initialize connection to Time_Range collection
-            MongoService.initialize("Time_Range");
-            Document result = MongoService.findall(new Document()).stream().findFirst().orElse(null);
             if (result != null) {
                 return result.getInteger("range");
             } else {
-                System.out.println("No document found in the 'Time_Range' collection.");
-                return -1; // Or some other default value or error handling
+                LOGGER.warn("No document found in the 'Time_Range' collection.");
+                return 30; // Default value
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return -1; // Or some other default value or error handling
+        } else {
+            LOGGER.error("Failed to connect to the database.");
+            return 30; // Default value
         }
     }
 }

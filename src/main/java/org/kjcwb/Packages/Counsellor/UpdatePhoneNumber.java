@@ -5,7 +5,7 @@ import io.vertx.ext.web.RoutingContext;
 
 public class UpdatePhoneNumber {
     public static void handleUpdatePhoneNumber(RoutingContext context) {
-        MongoService.initialize( "Counsellor");
+        MongoService.initialize( "Counsellors");
         JsonObject requestBody = context.getBodyAsJson();
         if (requestBody == null) {
             context.response().setStatusCode(400).putHeader("content-type", "application/json").end();

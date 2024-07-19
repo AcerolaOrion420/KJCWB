@@ -19,28 +19,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 
-public class SlotBooking {
+public class BookASlot {
     private final MongoDatabase database;
-    private static final Logger LOGGER = LoggerFactory.getLogger(SlotBooking.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(BookASlot.class);
     private final TimeUtility timeUtility = new TimeUtility();
+
     String appointment_id=null;
     String slot_id=null;
     boolean data_updated=false;
     boolean counselorFoundGetDates = false;
 
-
-    public SlotBooking() {
+    public BookASlot() {
         database = DBConnectivity.connectToDatabase("admin");
         if (database != null) {
             LOGGER.info("SlotBooking class initialized and connected to DB");
@@ -49,32 +45,14 @@ public class SlotBooking {
         }
     }
 
-    private long currentDateAndTime() {
-        LocalDateTime now = LocalDateTime.now();
-        return now.toInstant(ZoneOffset.UTC).toEpochMilli();
-    }
-
-    private int convertTimeToMillis(String time) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
-        LocalTime localTime = LocalTime.parse(time, formatter);
-        return (int) ChronoUnit.MILLIS.between(LocalTime.MIDNIGHT, localTime);
-    }
-
-    private long dateToMilliseconds(String date) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        LocalDate formatdate = LocalDate.parse(date, formatter);
-        return formatdate.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
-    }
-
-    public List<Document> checkSlotsInAppointment(long milliseconds) {
+    public List<Document> checkSlotsInAvailableSlots(long milliseconds) {
         List<Document> slotsList = new ArrayList<>();
 
         if (database != null) {
-            MongoCollection<Document> collection = database.getCollection("Appointment");
+            MongoCollection<Document> collection = database.getCollection("Available_slots");
 
             // Checking whether the document for the selected date is available in DB
-            Document query = new Document("date_mils", milliseconds);
-
+            Document query = new Document("date_milliseconds", milliseconds);
             MongoCursor<Document> cursor = collection.find(query).iterator();
 
             try {
@@ -87,16 +65,16 @@ public class SlotBooking {
                         Document jsonObject = new Document()
                                 .append("_id", document.getString("_id"))
                                 .append("date", document.getString("date"))
-                                .append("date_mils", document.getLong("date_mils"));
+                                .append("date_milliseconds", document.getLong("date_milliseconds"));
 
                         // Retrieve the counselor array from the document
-                        List<Document> counselors = (List<Document>) document.get("counselor");
+                        List<Document> counselors = (List<Document>) document.get("counsellors");
                         JsonArray counselorArray = new JsonArray();
 
                         // Convert each counselor document to JsonObject format
                         for (Document counselorDoc : counselors) {
                             JsonObject counselorObj = new JsonObject()
-                                    .put("counselor_id", counselorDoc.getString("counselor_id"));
+                                    .put("counsellor_id", counselorDoc.getString("counsellor_id"));
 
                             // Retrieve the slots array from the counselor document
                             List<Document> slots = (List<Document>) counselorDoc.get("slots");
@@ -107,16 +85,16 @@ public class SlotBooking {
                                 Document slotObj = new Document()
                                         .append("slot_id", slotDoc.getString("slot_id"))
                                         .append("slot_s_time", slotDoc.getString("slot_s_time"))
-                                        .append("slot_s_time_m", slotDoc.getInteger("slot_s_time_m"))
+                                        .append("slot_start_time_milliseconds", slotDoc.getInteger("slot_start_time_milliseconds"))
                                         .append("slot_e_time", slotDoc.getString("slot_e_time"))
-                                        .append("slot_e_time_m", slotDoc.getInteger("slot_e_time_m"))
+                                        .append("slot_end_time_milliseconds", slotDoc.getInteger("slot_end_time_milliseconds"))
                                         .append("status", slotDoc.getBoolean("status"));
                                 slotsArray.add(slotObj);
                             }
                             counselorObj.put("slots", slotsArray);
                             counselorArray.add(counselorObj);
                         }
-                        jsonObject.put("counselor", counselorArray);
+                        jsonObject.put("counsellors", counselorArray);
                         slotsList.add(jsonObject);
                     }
                 }
@@ -134,16 +112,16 @@ public class SlotBooking {
     private List<Document> primeGetSlots(String counsellor_id, long milliseconds,int slot_s_time_m) {
 
         List<Document> slotsList = new ArrayList<>();
-        long currentmilliseconds = currentDateAndTime();
-        long selectedmilliseconds=milliseconds+slot_s_time_m;
-        if(selectedmilliseconds>=currentmilliseconds)
+        long currentMilliseconds = timeUtility.currentDateAndTimeMillis();
+        long selectedMilliseconds=milliseconds+slot_s_time_m;
+        if(selectedMilliseconds>=currentMilliseconds)
         {
             if (database != null) {
                 //Get the collection named "Counsellor_Default_Slots"
                 MongoCollection<Document> collection = database.getCollection("Counsellor_Default_Slots");
 
                 //Query to find documents matching the counselor_id
-                Document query = new Document("counselor_id", counsellor_id);
+                Document query = new Document("counsellor_id", counsellor_id);
                 MongoCursor<Document> cursor = collection.find(query).iterator();
 
                 try {
@@ -154,16 +132,16 @@ public class SlotBooking {
                             for (Document slot : slots) {
                                 boolean status = slot.getBoolean("status");
                                 if (!status) {
-                                    int slot_s_time = slot.getInteger("slot_s_time_m");
+                                    int slot_s_time = slot.getInteger("slot_start_time_milliseconds");
                                     long totalmilliseconds = milliseconds + slot_s_time;
 
-                                    if (totalmilliseconds >= currentmilliseconds) {
+                                    if (totalmilliseconds >= currentMilliseconds) {
                                         Document Doc = new Document()
                                                 .append("slot_id", slot.getString("slot_id"))
                                                 .append("slot_s_time", slot.getString("slot_s_time"))
-                                                .append("slot_s_time_m", slot.getInteger("slot_s_time_m"))
+                                                .append("slot_start_time_milliseconds", slot.getInteger("slot_start_time_milliseconds"))
                                                 .append("slot_e_time", slot.getString("slot_e_time"))
-                                                .append("slot_e_time_m", slot.getInteger("slot_e_time_m"))
+                                                .append("slot_end_time_milliseconds", slot.getInteger("slot_end_time_milliseconds"))
                                                 .append("status", slot.getBoolean("status"));
                                         slotsList.add(Doc);
                                     }
@@ -193,29 +171,28 @@ public class SlotBooking {
         return suffix + formattedDate;
     }
 
-    private void insertNewRecord(List<Document> slotsList, String cid, String date, long milliseconds, int slot_s_time_m, int slot_e_time_m) {
-        MongoCollection<Document> collection = database.getCollection("Appointment");
+    private void insertNewRecord(List<Document> slotsList, String counsellor_id, String date, long milliseconds, int slot_s_time_m, int slot_e_time_m) {
+        MongoCollection<Document> collection = database.getCollection("Available_slots");
         String uniqueId = generateUniqueId(date, "A");
 
         // Convert JsonObject list to Document list and update the status
         List<Document> slotDocuments = new ArrayList<>();
         for (Document slot : slotsList) {
             // Check if the slot matches the given start and end times
-            int slotStartTime = slot.getInteger("slot_s_time_m");
-            int slotEndTime = slot.getInteger("slot_e_time_m");
+            int slotStartTime = slot.getInteger("slot_start_time_milliseconds");
+            int slotEndTime = slot.getInteger("slot_end_time_milliseconds");
             if (slotStartTime == slot_s_time_m && slotEndTime == slot_e_time_m) {
                 slot_id=slot.getString("slot_id");
                 slot.put("status", true);
             }
             slotDocuments.add(slot);
         }
-        Document counselor = new Document("counselor_id", cid)
+        Document counselor = new Document("counsellor_id", counsellor_id)
                 .append("slots", slotDocuments);
         Document newRecord = new Document("_id", uniqueId)
                 .append("date", date)
-                .append("date_mils", milliseconds)
-                .append("counselor", Arrays.asList(counselor));
-
+                .append("date_milliseconds", milliseconds)
+                .append("counsellors", Arrays.asList(counselor));
 
         collection.insertOne(newRecord);
         appointment_id=newRecord.getString("_id");
@@ -223,7 +200,7 @@ public class SlotBooking {
 
     private List<Document> getDates(String counsellor_id, long milliseconds,int slot_s_time_m) {
         List<Document> dateList = new ArrayList<>();
-        long currentmilliseconds = currentDateAndTime();
+        long currentmilliseconds = timeUtility.currentDateAndTimeMillis();
         long selectedmilliseconds=milliseconds+slot_s_time_m;
         if(selectedmilliseconds>=currentmilliseconds)
         {
@@ -240,23 +217,23 @@ public class SlotBooking {
                         for (Document counsellor : counsellors) {
                             Long dMilliseconds = doc.getLong("date_milliseconds");
 
-                            if (dMilliseconds != null && dMilliseconds.equals(milliseconds) && counsellor.getString("counsellor_id").equals(counsellor_id) && counsellor.getBoolean("inactive")) {
+                            if (dMilliseconds != null && dMilliseconds.equals(milliseconds) && counsellor.getString("counsellor_id").equals(counsellor_id)) {
                                 counselorFoundGetDates = true;
                                 List<Document> slots = (List<Document>) counsellor.get("slots");
                                 if (slots != null) {
                                     for (Document slot : slots) {
                                         boolean status = slot.getBoolean("status");
-                                        if (!status) {
-                                            int slot_s_time = slot.getInteger("slot_s_time_m");
+                                        if (!status ) {
+                                            int slot_s_time = slot.getInteger("slot_start_time_milliseconds");
                                             long totalmilliseconds = milliseconds + slot_s_time;
 
                                             if (totalmilliseconds >= currentmilliseconds) {
                                                 Document Doc = new Document()
                                                         .append("slot_id", slot.getString("slot_id"))
                                                         .append("slot_s_time", slot.getString("slot_s_time"))
-                                                        .append("slot_s_time_m", slot.getInteger("slot_s_time_m"))
+                                                        .append("slot_start_time_milliseconds", slot.getInteger("slot_start_time_milliseconds"))
                                                         .append("slot_e_time", slot.getString("slot_e_time"))
-                                                        .append("slot_e_time_m", slot.getInteger("slot_e_time_m"))
+                                                        .append("slot_end_time_milliseconds", slot.getInteger("slot_end_time_milliseconds"))
                                                         .append("status", slot.getBoolean("status"));
                                                 dateList.add(Doc);
                                             }
@@ -278,7 +255,7 @@ public class SlotBooking {
         return dateList;
     }
 
-    public void getSlots(RoutingContext ctx) {
+    public void setSlots(RoutingContext ctx) {
         JsonObject requestBody = ctx.getBodyAsJson();
         if (requestBody == null) {
             ctx.response().setStatusCode(400).putHeader("content-type", "application/json")
@@ -295,7 +272,7 @@ public class SlotBooking {
         String referred_by = requestBody.getString("referred_by");
         String referrer_email = requestBody.getString("referrer_email");
 
-        long booked_on = currentDateAndTime();
+        long booked_on = timeUtility.currentDateAndTimeMillis();
 
         if (counsellor_id == null || date == null || slot_s_time == null || slot_e_time == null || ageStr == null || referred_by == null || referrer_email == null) {
             ctx.response()
@@ -306,10 +283,9 @@ public class SlotBooking {
         }
         int slot_s_time_m = timeUtility.timeToMilliseconds(slot_s_time);
         int slot_e_time_m = timeUtility.timeToMilliseconds(slot_e_time);
-        long milliseconds = dateToMilliseconds(date);
+        long milliseconds = timeUtility.dateToMilliseconds(date);
 
-        List<Document> slotsList = checkSlotsInAppointment(milliseconds);
-
+        List<Document> slotsList = checkSlotsInAvailableSlots(milliseconds);
         if (slotsList == null || slotsList.isEmpty()) {
             List<Document> dateList  = getDates(counsellor_id, milliseconds, slot_s_time_m);
             if(!dateList.isEmpty() && counselorFoundGetDates)
@@ -340,37 +316,37 @@ public class SlotBooking {
             for (Document slot : slotsList) {
 
                 appointment_id = slot.getString("_id");
-                JsonArray counselorsArray = slot.get("counselor", JsonArray.class);
+                JsonArray counselorsArray = slot.get("counsellors", JsonArray.class);
                 boolean counselorFound=false;
                 if (counselorsArray != null) {
 
                     for (int i = 0; i < counselorsArray.size(); i++) {
                         JsonObject counselor = counselorsArray.getJsonObject(i);
 
-                        if (counselor.getString("counselor_id").equals(counsellor_id)) {
+                        if (counselor.getString("counsellor_id").equals(counsellor_id)) {
                             counselorFound = true;
                             JsonArray slotsArray = counselor.getJsonArray("slots");
                             for (int j = 0; j < slotsArray.size(); j++) {
                                 JsonObject slotObj = slotsArray.getJsonObject(j);
-                                int slotStartTime = slotObj.getInteger("slot_s_time_m");
-                                int slotEndTime = slotObj.getInteger("slot_e_time_m");
+                                int slotStartTime = slotObj.getInteger("slot_start_time_milliseconds");
+                                int slotEndTime = slotObj.getInteger("slot_end_time_milliseconds");
                                 if (slotStartTime == slot_s_time_m && slotEndTime == slot_e_time_m) {
                                     slot_id = slotObj.getString("slot_id");
                                     slotObj.put("status", true);
 
-                                    MongoCollection<Document> collection = database.getCollection("Appointment");
+                                    MongoCollection<Document> collection = database.getCollection("Available_slots");
                                     Document filter = new Document("_id", slot.getString("_id"))
-                                            .append("counselor.counselor_id", counsellor_id)
-                                            .append("counselor.slots.slot_s_time_m", slot_s_time_m)
-                                            .append("counselor.slots.slot_e_time_m", slot_e_time_m);
-                                    Document updateDoc = new Document("$set", new Document("counselor.$[c].slots.$[s].status", true));
+                                            .append("counsellors.counsellor_id", counsellor_id)
+                                            .append("counsellors.slots.slot_start_time_milliseconds", slot_s_time_m)
+                                            .append("counsellors.slots.slot_end_time_milliseconds", slot_e_time_m);
+                                    Document updateDoc = new Document("$set", new Document("counsellors.$[c].slots.$[s].status", true));
 
                                     UpdateOptions options = new UpdateOptions();
                                     options.arrayFilters(List.of(
-                                            Filters.eq("c.counselor_id", counsellor_id),
+                                            Filters.eq("c.counsellor_id", counsellor_id),
                                             Filters.and(
-                                                    Filters.eq("s.slot_s_time_m", slot_s_time_m),
-                                                    Filters.eq("s.slot_e_time_m", slot_e_time_m)
+                                                    Filters.eq("s.slot_start_time_milliseconds", slot_s_time_m),
+                                                    Filters.eq("s.slot_end_time_milliseconds", slot_e_time_m)
                                             )
                                     ));
                                     UpdateResult updateResult = collection.updateOne(
@@ -380,6 +356,7 @@ public class SlotBooking {
                                     );
                                     if (updateResult.getModifiedCount() > 0) {
                                         LOGGER.info("Document updated successfully getSlots");
+                                        updateLeaveCalendar( counsellor_id,  milliseconds,  slot_s_time_m,  slot_e_time_m);
                                         data_updated = true;
                                     } else {
                                         LOGGER.error("Document not updated getSlots ");
@@ -400,9 +377,9 @@ public class SlotBooking {
                             List<Document> getDatDocuments = new ArrayList<>();
                             for (Document slot2 : getDateSlots) {
                                 // Check if the slot matches the given start and end times
-                                int slotStartTime = slot2.getInteger("slot_s_time_m");
+                                int slotStartTime = slot2.getInteger("slot_start_time_milliseconds");
 
-                                int slotEndTime = slot2.getInteger("slot_e_time_m");
+                                int slotEndTime = slot2.getInteger("slot_end_time_milliseconds");
 
                                 if (slotStartTime == slot_s_time_m && slotEndTime == slot_e_time_m) {
                                     slot_id = slot2.getString("slot_id");
@@ -414,12 +391,12 @@ public class SlotBooking {
                             // Check if primeGetSlots returned valid slots
                             if (!getDateSlots.isEmpty()) {
                                 // Retrieve counselorsList from the current slot document
-                                JsonArray counselorsList = slot.get("counselor", JsonArray.class);
+                                JsonArray counselorsList = slot.get("counsellors", JsonArray.class);
 
                                 if (counselorsList != null) {
                                     // Create new counselor document to append
                                     Document newCounselor = new Document();
-                                    newCounselor.put("counselor_id", counsellor_id);
+                                    newCounselor.put("counsellor_id", counsellor_id);
                                     newCounselor.put("slots", getDatDocuments);
 
                                     // Append new counselor to the existing counselor array
@@ -435,13 +412,13 @@ public class SlotBooking {
                                     }
 
                                     // Update the document in the database
-                                    MongoCollection<Document> collection = database.getCollection("Appointment");
+                                    MongoCollection<Document> collection = database.getCollection("Available_slots");
 
                                     // Filter to find the document to update using its _id
                                     Document filter = new Document("_id", slot.getString("_id"));
 
                                     // Create update operation
-                                    Document updateDoc = new Document("$set", new Document("counselor", counselorDocuments));
+                                    Document updateDoc = new Document("$set", new Document("counsellors", counselorDocuments));
 
                                     // Perform update operation
                                     UpdateResult updateResult = collection.updateOne(filter, updateDoc);
@@ -474,9 +451,9 @@ public class SlotBooking {
                             List<Document> slotDocuments = new ArrayList<>();
                             for (Document slot2 : primeslotsList) {
                                 // Check if the slot matches the given start and end times
-                                int slotStartTime = slot2.getInteger("slot_s_time_m");
+                                int slotStartTime = slot2.getInteger("slot_start_time_milliseconds");
 
-                                int slotEndTime = slot2.getInteger("slot_e_time_m");
+                                int slotEndTime = slot2.getInteger("slot_end_time_milliseconds");
 
                                 if (slotStartTime == slot_s_time_m && slotEndTime == slot_e_time_m) {
                                     slot_id = slot2.getString("slot_id");
@@ -488,12 +465,12 @@ public class SlotBooking {
                             // Check if primeGetSlots returned valid slots
                             if (!primeslotsList.isEmpty()) {
                                 // Retrieve counselorsList from the current slot document
-                                JsonArray counselorsList = slot.get("counselor", JsonArray.class);
+                                JsonArray counselorsList = slot.get("counsellors", JsonArray.class);
 
                                 if (counselorsList != null) {
                                     // Create new counselor document to append
                                     Document newCounselor = new Document();
-                                    newCounselor.put("counselor_id", counsellor_id);
+                                    newCounselor.put("counsellor_id", counsellor_id);
                                     newCounselor.put("slots", slotDocuments);
 
                                     // Append new counselor to the existing counselor array
@@ -509,13 +486,13 @@ public class SlotBooking {
                                     }
 
                                     // Update the document in the database
-                                    MongoCollection<Document> collection = database.getCollection("Appointment");
+                                    MongoCollection<Document> collection = database.getCollection("Available_slots");
 
                                     // Filter to find the document to update using its _id
                                     Document filter = new Document("_id", slot.getString("_id"));
 
                                     // Create update operation
-                                    Document updateDoc = new Document("$set", new Document("counselor", counselorDocuments));
+                                    Document updateDoc = new Document("$set", new Document("counsellors", counselorDocuments));
 
                                     // Perform update operation
                                     UpdateResult updateResult = collection.updateOne(filter, updateDoc);
@@ -540,23 +517,24 @@ public class SlotBooking {
         InsertOneResult result = null;
         if (data_updated) {
             String student_id = ctx.user().principal().getString("id");
-            String Booked_appointment_id = generateUniqueId(date, "BS") + student_id;
+            String currentTime=timeUtility.currentTime();
+            String Booked_appointment_id = generateUniqueId(date, "BS") + student_id+currentTime;
             Document appointment_booked = new Document("_id", Booked_appointment_id)
                     .append("appointment_id", appointment_id)
                     .append("date", date)
-                    .append("date_mils", milliseconds)
+                    .append("date_milliseconds", milliseconds)
                     .append("booked_on_date_milliseconds", booked_on)
-                    .append("counselor_id", counsellor_id)
+                    .append("counsellor_id", counsellor_id)
                     .append("student_id", student_id)
                     .append("slot_id", slot_id)
-                    .append("slot_s_time_m", slot_s_time_m)
-                    .append("slot_e_time_m", slot_e_time_m)
+                    .append("slot_start_time_milliseconds", slot_s_time_m)
+                    .append("slot_end_time_milliseconds", slot_e_time_m)
                     .append("referred_by", referred_by)
                     .append("referrer_Email", referrer_email)
                     .append("student_age", age)
                     .append("slot_status", "pending");
 
-            MongoCollection<Document> collection = database.getCollection("Booked_Slots");
+            MongoCollection<Document> collection = database.getCollection("Booked_slots");
             result = collection.insertOne(appointment_booked);
         } else {
             ctx.response().putHeader("content-type", "application/json")
@@ -580,8 +558,8 @@ public class SlotBooking {
             Bson filter = Filters.and(
                     Filters.eq("date_milliseconds", milliseconds),
                     Filters.eq("counsellors.counsellor_id", counsellor_id),
-                    Filters.eq("counsellors.slots.slot_s_time_m", slot_s_time_m),
-                    Filters.eq("counsellors.slots.slot_e_time_m", slot_e_time_m)
+                    Filters.eq("counsellors.slots.slot_start_time_milliseconds", slot_s_time_m),
+                    Filters.eq("counsellors.slots.slot_end_time_milliseconds", slot_e_time_m)
             );
 
             Document updateDoc = new Document("$set", new Document("counsellors.$[c].slots.$[s].status", true));
@@ -589,8 +567,8 @@ public class SlotBooking {
             UpdateOptions options = new UpdateOptions().arrayFilters(List.of(
                     Filters.eq("c.counsellor_id", counsellor_id),
                     Filters.and(
-                            Filters.eq("s.slot_s_time_m", slot_s_time_m),
-                            Filters.eq("s.slot_e_time_m", slot_e_time_m)
+                            Filters.eq("s.slot_start_time_milliseconds", slot_s_time_m),
+                            Filters.eq("s.slot_end_time_milliseconds", slot_e_time_m)
                     )
             ));
 

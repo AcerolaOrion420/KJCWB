@@ -11,7 +11,7 @@ import org.mindrot.jbcrypt.BCrypt;
 public class LoginHandler {
 
     public static void handleLogin(RoutingContext context) {
-        MongoService.initialize( "Counsellor");
+        MongoService.initialize( "Counsellors");
         String email = context.getBodyAsJson().getString("email");
         String password = context.getBodyAsJson().getString("password");
 
@@ -55,7 +55,7 @@ public class LoginHandler {
     }
 
     public static void handleReset(RoutingContext context){
-        MongoService.initialize("Counsellor");
+        MongoService.initialize("Counsellors");
         String email = context.getBodyAsJson().getString("email");
         String password = context.getBodyAsJson().getString("password");
         String newpassword = context.getBodyAsJson().getString("newpassword");
@@ -76,7 +76,7 @@ public class LoginHandler {
         MongoService.close();
     }
     public static void handleForget(RoutingContext context){
-        MongoService.initialize("Counsellor");
+        MongoService.initialize("Counsellors");
         String email = context.getBodyAsJson().getString("email");
         String newpassword = context.getBodyAsJson().getString("newpassword");
         String hashpwd = BCrypt.hashpw(newpassword, BCrypt.gensalt());

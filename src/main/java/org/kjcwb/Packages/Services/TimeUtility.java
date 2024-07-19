@@ -9,6 +9,12 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+
 public class TimeUtility {
 
 
@@ -28,9 +34,8 @@ public class TimeUtility {
     {
         LocalTime time = LocalTime.ofNanoOfDay(milliseconds * 1_000_000); // Convert milliseconds to nanoseconds
         // Define a DateTimeFormatter for the desired format "hh:mm:ss a"
-        DateTimeFormatter timeformatter = DateTimeFormatter.ofPattern("hh:mm a");
-
-        return time.format(timeformatter);
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a");
+        return time.format(timeFormatter);
     }
 
     //////////
@@ -54,5 +59,20 @@ public class TimeUtility {
             e.printStackTrace();
             return -1;
         }
+    }
+
+    public static String millisecondsToDate(long milliseconds) {
+        Instant instant = Instant.ofEpochMilli(milliseconds);
+        LocalDate date = instant.atZone(ZoneId.of("UTC")).toLocalDate();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        return date.format(formatter);
+    }
+    public String currentTime()
+    {
+        LocalTime now = LocalTime.now();
+        // Define the formatter for the desired time pattern
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HHmmss");
+        // Format the current time
+        return now.format(timeFormatter);
     }
 }

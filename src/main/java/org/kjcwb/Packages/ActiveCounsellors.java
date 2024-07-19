@@ -9,8 +9,8 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Counsellors {
-    private static final Logger LOGGER = LoggerFactory.getLogger(Counsellors.class);
+public class ActiveCounsellors {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ActiveCounsellors.class);
 
 
     // Gets all the Counsellors who are active in DB
@@ -20,7 +20,7 @@ public class Counsellors {
         try {
             // Query to find documents where "Active" is true
             Document query = new Document("Active", true).append("role","counsellor");
-            MongoService.initialize( "Counsellor");
+            MongoService.initialize( "Counsellors");
             // Fetch all documents matching the query
             List<Document> documents = MongoService.findall(query);
 
