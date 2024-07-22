@@ -8,7 +8,6 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
-
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -271,6 +270,8 @@ public class BookASlot {
         int age = ageStr != null ? Integer.parseInt(ageStr) : -1;
         String referred_by = requestBody.getString("referred_by");
         String referrer_email = requestBody.getString("referrer_email");
+        String studentId = ctx.user().principal().getString("id");
+
 
         long booked_on = timeUtility.currentDateAndTimeMillis();
 
@@ -331,37 +332,47 @@ public class BookASlot {
                                 int slotStartTime = slotObj.getInteger("slot_start_time_milliseconds");
                                 int slotEndTime = slotObj.getInteger("slot_end_time_milliseconds");
                                 if (slotStartTime == slot_s_time_m && slotEndTime == slot_e_time_m) {
-                                    slot_id = slotObj.getString("slot_id");
-                                    slotObj.put("status", true);
+                                    if(!slotObj.getBoolean("status"))
+                                    {
+                                        slot_id = slotObj.getString("slot_id");
+                                        slotObj.put("status", true);
 
-                                    MongoCollection<Document> collection = database.getCollection("Available_slots");
-                                    Document filter = new Document("_id", slot.getString("_id"))
-                                            .append("counsellors.counsellor_id", counsellor_id)
-                                            .append("counsellors.slots.slot_start_time_milliseconds", slot_s_time_m)
-                                            .append("counsellors.slots.slot_end_time_milliseconds", slot_e_time_m);
-                                    Document updateDoc = new Document("$set", new Document("counsellors.$[c].slots.$[s].status", true));
+                                        MongoCollection<Document> collection = database.getCollection("Available_slots");
+                                        Document filter = new Document("_id", slot.getString("_id"))
+                                                .append("counsellors.counsellor_id", counsellor_id)
+                                                .append("counsellors.slots.slot_start_time_milliseconds", slot_s_time_m)
+                                                .append("counsellors.slots.slot_end_time_milliseconds", slot_e_time_m);
+                                        Document updateDoc = new Document("$set", new Document("counsellors.$[c].slots.$[s].status", true));
 
-                                    UpdateOptions options = new UpdateOptions();
-                                    options.arrayFilters(List.of(
-                                            Filters.eq("c.counsellor_id", counsellor_id),
-                                            Filters.and(
-                                                    Filters.eq("s.slot_start_time_milliseconds", slot_s_time_m),
-                                                    Filters.eq("s.slot_end_time_milliseconds", slot_e_time_m)
-                                            )
-                                    ));
-                                    UpdateResult updateResult = collection.updateOne(
-                                            filter,
-                                            updateDoc,
-                                            options
-                                    );
-                                    if (updateResult.getModifiedCount() > 0) {
-                                        LOGGER.info("Document updated successfully getSlots");
-                                        updateLeaveCalendar( counsellor_id,  milliseconds,  slot_s_time_m,  slot_e_time_m);
-                                        data_updated = true;
-                                    } else {
-                                        LOGGER.error("Document not updated getSlots ");
+                                        UpdateOptions options = new UpdateOptions();
+                                        options.arrayFilters(List.of(
+                                                Filters.eq("c.counsellor_id", counsellor_id),
+                                                Filters.and(
+                                                        Filters.eq("s.slot_start_time_milliseconds", slot_s_time_m),
+                                                        Filters.eq("s.slot_end_time_milliseconds", slot_e_time_m)
+                                                )
+                                        ));
+                                        UpdateResult updateResult = collection.updateOne(
+                                                filter,
+                                                updateDoc,
+                                                options
+                                        );
+                                        if (updateResult.getModifiedCount() > 0) {
+                                            LOGGER.info("Document updated successfully getSlots");
+                                            updateLeaveCalendar( counsellor_id,  milliseconds,  slot_s_time_m,  slot_e_time_m);
+                                            data_updated = true;
+                                        } else {
+                                            LOGGER.error("Document not updated getSlots ");
+
+                                        }
+                                        break;
                                     }
-                                    break;
+                                    else {
+                                        ctx.response().putHeader("content-type", "application/json")
+                                                .end(Json.encodePrettily("Selected slot have been booked few seconds ago, kindly try booking another slot."));
+                                        return;
+                                    }
+
                                 }
                             }
                             break; // Exit loop after updating the first matching counselor
@@ -516,7 +527,7 @@ public class BookASlot {
         }
         InsertOneResult result = null;
         if (data_updated) {
-            String student_id = ctx.user().principal().getString("id");
+            String student_id=studentId;
             String currentTime=timeUtility.currentTime();
             String Booked_appointment_id = generateUniqueId(date, "BS") + student_id+currentTime;
             Document appointment_booked = new Document("_id", Booked_appointment_id)

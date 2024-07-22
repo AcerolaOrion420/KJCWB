@@ -19,7 +19,7 @@ import java.util.List;
 
 
 public class CounsellorFormSubmit {
-
+    private final TimeUtility timeUtility = new TimeUtility();
     private MongoDatabase database;
 
     public CounsellorFormSubmit() {
@@ -41,11 +41,6 @@ public class CounsellorFormSubmit {
         }
     }
 
-    public String timeFormatter(long milliseconds) {
-        LocalTime time = LocalTime.ofNanoOfDay(milliseconds * 1_000_000);
-        DateTimeFormatter timeformatter = DateTimeFormatter.ofPattern("hh:mm a");
-        return time.format(timeformatter);
-    }
 
     public long countCompletedSessions(String studentId) {
         MongoCollection<Document> collection = database.getCollection("Booked_slots");
@@ -74,6 +69,12 @@ public class CounsellorFormSubmit {
             throw new RuntimeException("Counsellor not found");
         }
     }
+    private void insertAfterDeletion(MongoCollection<Document> collection, Document existingReport, Document newReport) {
+        if (existingReport != null) {
+            collection.deleteOne(existingReport);
+        }
+        collection.insertOne(newReport);
+    }
 
     public void fetchStudent(RoutingContext ctx) {
         JsonObject requestBody = ctx.getBodyAsJson();
@@ -95,6 +96,14 @@ public class CounsellorFormSubmit {
         } catch (RuntimeException e) {
             ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch session")));
+            return;
+        }
+        Document ReportExist;
+        try {
+            ReportExist = findSingleDocument("Report", query);
+        } catch (RuntimeException e) {
+            ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
+                    .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch Report")));
             return;
         }
 
@@ -123,8 +132,13 @@ public class CounsellorFormSubmit {
 
             List<String> uniqueCounselorNames = new ArrayList<>(counselorNames);
 
-            session.put("slot_start_time_milliseconds", timeFormatter(session.getInteger("slot_start_time_milliseconds")));
-            session.put("slot_end_time_milliseconds", timeFormatter(session.getInteger("slot_end_time_milliseconds")));
+            session.put("slot_start_time_milliseconds", timeUtility.timeFormatter(session.getInteger("slot_start_time_milliseconds")));
+            session.put("slot_end_time_milliseconds", timeUtility.timeFormatter(session.getInteger("slot_end_time_milliseconds")));
+            session.put("date_milliseconds", timeUtility.millisecondsToDate(session.getLong("date_milliseconds")));
+            session.put("booked_on_date_milliseconds", timeUtility.millisecondsToDate(session.getLong("booked_on_date_milliseconds")));
+
+            String slotStatus = session.getString("slot_status");
+            session.put("rootToggle", !"Missed".equals(slotStatus) && !"Cancelled".equals(slotStatus));
 
             session.put("student_id", student.getString("_id"));
             session.put("student_name", student.getString("name"));
@@ -136,6 +150,35 @@ public class CounsellorFormSubmit {
             session.put("student_active", student.getBoolean("active"));
             session.put("completedSessions", completedSessions);
 
+            // from ReportExist
+            if (ReportExist != null) {
+                session.put("Duration", processReportValue(ReportExist.getString("Duration")));
+                session.put("PastMedicalHistory", processReportValue(ReportExist.getString("PastMedicalHistory")));
+                session.put("PastPsychiatricHistory", processReportValue(ReportExist.getString("PastPsychiatricHistory")));
+                session.put("FurtherReferrals", processReportValue(ReportExist.getString("FurtherReferrals")));
+                session.put("RecommendedFollowUpSession", ReportExist.getBoolean("RecommendedFollowUpSession") != null ? ReportExist.getBoolean("RecommendedFollowUpSession") : false);
+                session.put("ConcernsDiscussed", processReportValue(ReportExist.getString("ConcernsDiscussed")));
+
+                // New conditions for toggles
+                session.put("PastMedicalHistoryToggle", ReportExist.getString("PastMedicalHistory") == null || "NO DATA".equals(ReportExist.getString("PastMedicalHistory")) ? false : true);
+                session.put("PastPsychiatricHistoryToggle", ReportExist.getString("PastPsychiatricHistory") == null || "NO DATA".equals(ReportExist.getString("PastPsychiatricHistory")) ? false : true);
+                session.put("FurtherReferralsToggle", ReportExist.getString("FurtherReferrals") == null || "NO DATA".equals(ReportExist.getString("FurtherReferrals")) ? false : true);
+                session.put("FollowUpSessionToggle", ReportExist.getBoolean("RecommendedFollowUpSession") == null ? false : true);
+            } else {
+                session.put("Duration", "");
+                session.put("PastMedicalHistory", "");
+                session.put("PastPsychiatricHistory", "");
+                session.put("FurtherReferrals", "");
+                session.put("RecommendedFollowUpSession", false);
+                session.put("ConcernsDiscussed", "");
+
+                session.put("PastMedicalHistoryToggle", false);
+                session.put("PastPsychiatricHistoryToggle", false);
+                session.put("FurtherReferralsToggle", false);
+                session.put("FollowUpSessionToggle", false);
+            }
+
+            // Create response JSON
             JsonObject response = new JsonObject()
                     .put("session", new JsonObject(session.toJson()))
                     .put("completedSessions", completedSessions)
@@ -151,6 +194,9 @@ public class CounsellorFormSubmit {
             System.out.println("Fetch unsuccessful ");
         }
     }
+    private String processReportValue(String value) {
+        return value != null && "NO DATA".equals(value) ? "" : value;
+    }
 
     public void updateSession(RoutingContext ctx) {
         JsonObject requestBody = ctx.getBodyAsJson();
@@ -161,7 +207,7 @@ public class CounsellorFormSubmit {
         }
         String _id = requestBody.getString("_id");
         boolean rootToggle = requestBody.getBoolean("rootToggle");
-        System.out.println("rootToggle :" + rootToggle);
+
 
         Document query = new Document("_id", _id);
 
@@ -175,27 +221,49 @@ public class CounsellorFormSubmit {
         }
 
         if (session != null) {
-            String slotStatus = session.getString("slot_status");
-            if ("completed".equals(slotStatus) || "Missed".equals(slotStatus)) {
-                ctx.response().setStatusCode(400).putHeader("content-type", "application/json")
-                        .end(Json.encodePrettily(new JsonObject().put("error", "Session already submitted")));
+            Document ReportExist;
+            Document newReport = new Document();
+
+
+            try {
+                ReportExist = findSingleDocument("Report", query);
+            } catch (RuntimeException e) {
+                ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
+                        .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch Report")));
                 return;
             }
-            Document newReport = new Document();
-            newReport.put("counsellor_id", requestBody.getString("counsellor_id"));
-            newReport.put("_id", _id);
-            newReport.put("SessionNo", requestBody.getString("SessionNo"));
+
 
             if (rootToggle) {
+
+
+                try {
+                    ReportExist = findSingleDocument("Report", query);
+                } catch (RuntimeException e) {
+                    ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
+                            .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch Report")));
+                    return;
+                }
+
+
+                //just to check toggle values
                 boolean PastMedicalHistoryTogglevalue = requestBody.getBoolean("PastMedicalHistoryToggle");
                 boolean PastPsychiatricHistoryTogglevalue = requestBody.getBoolean("PastPsychiatricHistoryToggle");
                 boolean FurtherReferralsTogglevalue = requestBody.getBoolean("FurtherReferralsToggle");
                 boolean FollowUpSessionTogglevalue = requestBody.getBoolean("FollowUpSessionToggle");
-                System.out.println("PastMedicalHistoryTogglevalue :" + PastMedicalHistoryTogglevalue);
-                System.out.println("PastPsychiatricHistoryTogglevalue :" + PastPsychiatricHistoryTogglevalue);
-                System.out.println("FurtherReferralsTogglevalue :" + FurtherReferralsTogglevalue);
-                System.out.println("FollowUpSessionTogglevalue :" + FollowUpSessionTogglevalue);
 
+                System.out.println("PastMedicalHistoryTogglevalue is : " + PastMedicalHistoryTogglevalue);
+                System.out.println("PastPsychiatricHistoryTogglevalue is : " + PastPsychiatricHistoryTogglevalue);
+                System.out.println("FurtherReferralsTogglevalue is : " + FurtherReferralsTogglevalue);
+                System.out.println("FollowUpSessionTogglevalue is : " + FollowUpSessionTogglevalue);
+                System.out.println();
+
+
+                //compulsory data
+                newReport.put("counsellor_id", requestBody.getString("counsellor_id"));
+                newReport.put("_id", _id);
+                newReport.put("SessionNo", requestBody.getString("SessionNo"));
+                newReport.put("Duration", requestBody.getString("Duration"));
                 newReport.put("PastMedicalHistory", requestBody.getBoolean("PastMedicalHistoryToggle") ?
                         requestBody.getString("PastMedicalHistory") : "NO DATA");
                 newReport.put("PastPsychiatricHistory", requestBody.getBoolean("PastPsychiatricHistoryToggle") ?
@@ -206,14 +274,23 @@ public class CounsellorFormSubmit {
                         requestBody.getBoolean("RecommendedFollowUpSession") : false);
                 newReport.put("ConcernsDiscussed", requestBody.getString("ConcernsDiscussed"));
                 MongoCollection<Document> collection = database.getCollection("Report");
-                collection.insertOne(newReport);
 
+
+                insertAfterDeletion(collection, ReportExist, newReport);
                 MongoCollection<Document> bookedSlotsCollection = database.getCollection("Booked_slots");
                 bookedSlotsCollection.updateOne(query, Updates.set("slot_status", "completed"));
 
-            } else {
+            }
+
+            else {
+                //compulsory data
+                newReport.put("counsellor_id", requestBody.getString("counsellor_id"));
+                newReport.put("_id", _id);
+                newReport.put("SessionNo", requestBody.getString("SessionNo"));
+
                 MongoCollection<Document> collection = database.getCollection("Report");
-                collection.insertOne(newReport);
+                insertAfterDeletion(collection, ReportExist, newReport);
+
                 MongoCollection<Document> bookedSlotsCollection = database.getCollection("Booked_slots");
                 bookedSlotsCollection.updateOne(query, Updates.set("slot_status", "Missed"));
             }
