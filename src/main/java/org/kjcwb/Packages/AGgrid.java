@@ -31,41 +31,52 @@ public class AGgrid {
     public void fetchAgGridData(RoutingContext ctx) {
         String id = ctx.user().principal().getString("id");
         String role=ctx.user().principal().getString("role");
+        System.out.println(id);
+        System.out.println(role);
+
         String queryid ="";
+        String oppid ="";
 
         if(Objects.equals(role, "user"))
         {
             queryid="student_id";
+            oppid="counsellor_id";
+            MongoService.initialize("Counsellors");
         }
         else {
             queryid="counsellor_id";
+            oppid="student_id";
+            MongoService.initialize("Student");
         }
-
+        System.out.println("queryid"+queryid);
         MongoCollection<Document> bookedSlotsCollection = database.getCollection("Booked_slots");
-
         // Query to fetch sessions for the hardcoded counselor ID
         Document query = new Document(queryid, id)
                 .append("slot_status", new Document("$in", List.of("completed", "missed", "Cancelled")));
+
+        System.out.println("query "+query);
 
         FindIterable<Document> bookedSlots = bookedSlotsCollection.find(query);
 
         List<JsonObject> responseList = new ArrayList<>();
 
         for (Document bookedSlot : bookedSlots) {
-            String studentId = bookedSlot.getString("student_id");
-            Document studentQuery = new Document("_id", studentId);
-            Document student;
+            String userId = bookedSlot.getString(oppid);
+            Document user;
+
             try {
-                student = MongoService.find("Student", String.valueOf(studentQuery));
+                user = MongoService.find("_id", userId);
+                System.out.println("studentoutput "+user);
+
             } catch (Exception e) {
-                    ctx.response().setStatusCode(400).putHeader("content-type", "application/json")
-                            .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch student details")));
-                    return;
+                ctx.response().setStatusCode(400).putHeader("content-type", "application/json")
+                        .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch student details")));
+                return;
             }
 
-            if (student != null) {
+            if (user != null) {
                 JsonObject record = new JsonObject();
-                record.put("Name", student.getString("name"));
+                record.put("Name", user.getString("name"));
                 record.put("date", bookedSlot.getString("date"));
                 record.put("bookingId", bookedSlot.getString("_id"));
                 record.put("status", bookedSlot.getString("slot_status"));

@@ -84,12 +84,14 @@ public class CounsellorFormSubmit {
         }
         String student_id = requestBody.getString("student_id");
         String _id = requestBody.getString("_id");
-
         Document query = new Document("_id", _id);
 
         Document session;
+
         try {
-            session = findSingleDocument("Booked_slots", query);
+            MongoService.initialize("Booked_slots");
+            System.out.println("_id "+_id);
+            session = MongoService.find("_id", _id);
         } catch (RuntimeException e) {
             ctx.response().setStatusCode(500).putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(new JsonObject().put("error", "Failed to fetch session")));

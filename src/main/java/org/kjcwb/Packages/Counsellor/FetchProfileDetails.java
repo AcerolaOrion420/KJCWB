@@ -23,7 +23,6 @@ public class FetchProfileDetails {
             return;
         }
 
-        System.out.println("hai " + email);
         Document query = new Document("email", email);
         try {
             List<Document> results = MongoService.findall(query);

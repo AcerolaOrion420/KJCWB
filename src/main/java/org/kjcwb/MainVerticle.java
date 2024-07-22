@@ -55,14 +55,17 @@ public class MainVerticle extends AbstractVerticle {
         router.get("/counsellors").handler(ActiveCounsellors::getCounsellor);
         router.get("/counsellorlist").handler(CounsellorList::getCounsellor);
         router.post("/addcounsellor").handler(CounsellorList::addCounsellor);
-        AGgrid ag = new AGgrid();
-        router.get("/aggrid").handler(ag::fetchAgGridData);
+
 
 
         // Protected Routes
+        AGgrid ag = new AGgrid();
+
+
         router.route("/protected/*").handler(JWTAuthHandler.create(JwtAuthProvider.getJwtAuth()));
         router.route("/protected/*").handler(JwtAuthProvider::handleTokenRenewal);
-        router.get("/protected/test").handler(Test::handleTest);
+        router.get("/protected/aggrid").handler(ag::fetchAgGridData);
+
 
 
 
@@ -98,6 +101,7 @@ public class MainVerticle extends AbstractVerticle {
         router.post("/protected/counsellor/unblockslots").handler(cbcs::unblockSlots);
         router.post("/protected/counsellor/fetchstudent").handler(cfs::fetchStudent);
         router.post("/protected/counsellor/formsubmit").handler(cfs::updateSession);
+        router.get("/protected/aggrid").handler(ag::fetchAgGridData);
 
 
 

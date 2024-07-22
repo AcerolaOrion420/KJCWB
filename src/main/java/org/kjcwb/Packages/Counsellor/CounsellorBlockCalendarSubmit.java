@@ -141,7 +141,6 @@ public class CounsellorBlockCalendarSubmit {
                         }
 
                         Document newCounselorDoc = new Document("counsellor_id", counsellorId)
-                                .append("Blocked By", "counsellor")
                                 .append("slots", newSlots);
 
                         UpdateResult updateResult = collection.updateOne(
@@ -150,6 +149,7 @@ public class CounsellorBlockCalendarSubmit {
                         );
                         if (updateResult.getModifiedCount() > 0) {
                             result1 = true;
+                            updateCounsellorLeaveCalendarBasedOnAvailableSlots( counsellorId, dateMillis,true);
                             LOGGER.info("Document updated successfully blockCalendar");
                         } else {
                             LOGGER.warn("Document not updated blockCalendar");
@@ -190,6 +190,7 @@ public class CounsellorBlockCalendarSubmit {
 
                     if (updateResult.getInsertedId() != null) {
                         result1 = true;
+                        updateCounsellorLeaveCalendarBasedOnAvailableSlots(counsellorId,dateMillis,true);
                         LOGGER.info("Document updated successfully blockCalendar 2");
                     } else {
                         LOGGER.warn("Document not updated blockCalendar 2");
@@ -281,6 +282,7 @@ public class CounsellorBlockCalendarSubmit {
                                         if (updateResult.getModifiedCount() > 0) {
                                             result1 = true;
                                             updateAppointmentTable(counsellorId, dateMillis, slots,false);
+                                            updateCounsellorLeaveCalendarBasedOnAvailableSlots( counsellorId,  dateMillis,  false);
                                             LOGGER.info("Document updated successfully");
                                         } else {
                                             LOGGER.warn("Document not updated");
@@ -502,5 +504,73 @@ public class CounsellorBlockCalendarSubmit {
             LOGGER.error("Failed to connect to the database.");
         }
         return slotsList;
+    }
+
+    private void updateCounsellorLeaveCalendarBasedOnAvailableSlots(String counsellorId, long dateMilliseconds, boolean flag) {
+        if (database != null) {
+
+            MongoCollection<Document> availableSlotsCollection = database.getCollection("Available_slots");
+            MongoCollection<Document> leaveCalendarCollection = database.getCollection("Counsellor_Leave_Calendar");
+
+            // Query to find the document for the given date
+            Document query = new Document("date_milliseconds", dateMilliseconds)
+                    .append("counsellors.counsellor_id",counsellorId);
+
+            // Find the available slots for the given date
+            Document availableSlotsDoc = availableSlotsCollection.find(query).first();
+            if (availableSlotsDoc != null) {
+                List<Document> counselors = (List<Document>) availableSlotsDoc.get("counsellors");
+                for (Document counselorDoc : counselors) {
+                    if (counsellorId.equals(counselorDoc.getString("counsellor_id"))) {
+                        List<Document> availableSlotList = (List<Document>) counselorDoc.get("slots");
+
+                        // Query to find the leave calendar for the given date and counsellor
+                        Document leaveQuery = new Document("date_milliseconds", dateMilliseconds)
+                                .append("counsellors.counsellor_id", counsellorId);
+
+                        Document leaveCalendarDoc = leaveCalendarCollection.find(leaveQuery).first();
+                        if (leaveCalendarDoc != null) {
+                            List<Document> leaveCounselors = (List<Document>) leaveCalendarDoc.get("counsellors");
+                            for (Document leaveCounselorDoc : leaveCounselors) {
+                                if (counsellorId.equals(leaveCounselorDoc.getString("counsellor_id"))) {
+                                    List<Document> leaveSlotList = (List<Document>) leaveCounselorDoc.get("slots");
+
+                                    for (Document leaveSlotDoc : leaveSlotList) {
+                                        long leaveSlotStart = leaveSlotDoc.getInteger("slot_start_time_milliseconds");
+                                        long leaveSlotEnd = leaveSlotDoc.getInteger("slot_end_time_milliseconds");
+
+                                        for (Document availableSlotDoc : availableSlotList) {
+                                            long availableSlotStart = availableSlotDoc.getInteger("slot_start_time_milliseconds");
+                                            long availableSlotEnd = availableSlotDoc.getInteger("slot_end_time_milliseconds");
+
+                                            if (leaveSlotStart == availableSlotStart && leaveSlotEnd == availableSlotEnd && availableSlotDoc.getBoolean("status")==flag) {
+                                                leaveSlotDoc.put("status", flag);
+
+                                                Document filter = new Document("date_milliseconds", dateMilliseconds)
+                                                        .append("counsellors.counsellor_id", counsellorId)
+                                                        .append("counsellors.slots.slot_start_time_milliseconds", leaveSlotStart)
+                                                        .append("counsellors.slots.slot_end_time_milliseconds", leaveSlotEnd);
+
+                                                Document updateDoc = new Document("$set", new Document("counsellors.$[c].slots.$[s].status", flag));
+
+                                                UpdateOptions options = new UpdateOptions().arrayFilters(List.of(
+                                                        Filters.eq("c.counsellor_id", counsellorId),
+                                                        Filters.and(
+                                                                Filters.eq("s.slot_start_time_milliseconds", leaveSlotStart),
+                                                                Filters.eq("s.slot_end_time_milliseconds", leaveSlotEnd)
+                                                        )
+                                                ));
+
+                                                leaveCalendarCollection.updateOne(filter, updateDoc, options);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
